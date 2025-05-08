@@ -335,9 +335,16 @@ KbStrokeWait;
 % 阶段一：明确学习阶段
 % -------------------------------------------------------------------------
 % 参数设置
-expParams.explicitLearning.numBlocks = 4;
-expParams.explicitLearning.trialsPerBlock = 40;
-expParams.explicitLearning.catchTrialsPerBlock = 8; % 4个视觉，4个听觉
+
+% 标准参数
+% expParams.explicitLearning.numBlocks = 4;
+% expParams.explicitLearning.trialsPerBlock = 40;
+% expParams.explicitLearning.catchTrialsPerBlock = 8; % 4个视觉，4个听觉
+
+% 调试参数
+expParams.explicitLearning.numBlocks = 2;
+expParams.explicitLearning.trialsPerBlock = 8;
+expParams.explicitLearning.catchTrialsPerBlock = 2; % 4个视觉，4个听觉
 % 定义Block类型 (交替进行：视觉-听觉-视觉-听觉)
 blockOrderPhase1 = repmat({'visual', 'auditory'}, 1, expParams.explicitLearning.numBlocks / 2);
 currentTrialOverall = 0; % 用于数据保存的全局试验计数器
@@ -399,12 +406,11 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
     Screen('DrawText', window, text6, xCenter - bounds6(3)/2, yCenter + 4*visParams.textSize, white);
     Screen('DrawText', window, text7, xCenter - bounds7(3)/2, yCenter + 5*visParams.textSize, white);
 
-    if strcmp(attentedModality,'visual')
-        cue = visParams.cueTexture;
+    if strcmp(attentedModality, 'visual')
+        Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
     else
-        cue = audParams.cueTexture;
+        Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
     end
-    Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
 
     Screen('Flip', window);
 
@@ -418,7 +424,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
     numCatchAuditory = expParams.explicitLearning.catchTrialsPerBlock / 2;
 
     % 0=标准, 1=视觉捕获, 2=听觉捕获
-    trialProperties = [zeros(1, numStandardTrials), ones(1, numCatchVisual), ones(1, numCatchAuditory)];
+    trialProperties = [zeros(1, numStandardTrials), ones(1, numCatchVisual), 2*ones(1, numCatchAuditory)];
     trialProperties = Shuffle(trialProperties); % 打乱试验类型
 
     for iTrial = 1:expParams.explicitLearning.trialsPerBlock
@@ -489,12 +495,11 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
         Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2); % 加粗注视点
 
         % 绘制注意力提示图标
-        if strcmp(attentedModality,'visual')
-            cue = visParams.cueTexture;
+        if strcmp(attentedModality, 'visual')
+            Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
         else
-            cue = audParams.cueTexture;
+            Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
-        Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
         fixationStartTime = Screen('Flip', window);
 
         % 2. 领先刺激呈现
@@ -513,7 +518,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
-        Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
+
         % 翻转缓冲区,记录时间节点,在此之前填充听觉刺激缓冲区
         PsychPortAudio('FillBuffer', audParams.pahandle, [audParams.waveforms.leading{audLeadingStimIdx}; audParams.waveforms.leading{audLeadingStimIdx}]); % 立体声
         leadingStimStartTime = Screen('Flip', window);
@@ -536,7 +541,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
-        Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
+
 
         isiStartTime = Screen('Flip', window);
 
@@ -570,7 +575,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
-        Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
+
 
         % 听觉和视觉刺激同时产生
         trailingStimStartTime = Screen('Flip', window);
@@ -596,7 +601,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
-        Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
+
         responseScreenStartTime = Screen('Flip', window);
 
         % 收集反应
@@ -775,7 +780,6 @@ for iBlock = 1:expParams.implicitTest.numBlocks
     else
         Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
     end
-    Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
 
     Screen('Flip', window);
 
@@ -857,10 +861,11 @@ for iBlock = 1:expParams.implicitTest.numBlocks
             end
         end
 
+
         % --- 为此试验生成刺激 (包括偏差) ---
         % 视觉跟随 (如果偏差，可能需要动态生成)
         if targetIsDeviantStim && strcmp(attentedModality, 'visual')
-            visTrailingDeviantGabor = mygabor(visParams.pxlpdg, visParams.sizeDeg, actualVisTrailingAng);
+            visTrailingDeviantGabor = mygabor(visParams.pxlpdg, visParams.sizeDeg, actualVisTrailingAng,visParams.contrast);
             currentVisTrailingTexture = Screen('MakeTexture', window, visTrailingDeviantGabor*white);
         else % 标准或非注意模态的偏差试验（不应用staircase偏差）
             currentVisTrailingTexture = visParams.textures.trailing(visTrailingBaseIdx); % 标准纹理
@@ -889,16 +894,13 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         % 1. 注视点
         currentFixationDur = expParams.fixationDurRange(1) + rand * (expParams.fixationDurRange(2) - expParams.fixationDurRange(1));
         Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2);
-        if ~expParams.useTextCues
-            if strcmp(attentedModality, 'visual')
-                Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
-            else
-                Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
-            end
-            Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
+
+        if strcmp(attentedModality, 'visual')
+            Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
         else
-            %DrawFormattedText(window, sprintf('[注意模态: %s]', taskModalityChinese), 'center', screenYpixels - 70, black);
+            Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
+
         fixationStartTime = Screen('Flip', window);
 
         % 2. 领先刺激
@@ -911,7 +913,6 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
-        Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
 
         leadingStimStartTime = Screen('Flip', window);
         PsychPortAudio('FillBuffer', audParams.pahandle, [audParams.waveforms.leading{audLeadingStimIdx}; audParams.waveforms.leading{audLeadingStimIdx}]);
@@ -926,7 +927,6 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
-        Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
         isiStartTime = Screen('Flip', window);
 
         % 4. 跟随刺激
@@ -940,7 +940,7 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
-        Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
+
 
         trailingStimStartTime = Screen('Flip', window);
         PsychPortAudio('Start', audParams.pahandle, 1, trailingStimStartTime, 0);
@@ -949,7 +949,7 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         while (GetSecs - trailingStimStartTime) < expParams.trailingStimDur; [~,~,kR]=KbCheck; if any(kR); break;end; end
         PsychPortAudio('Stop', audParams.pahandle, 1);
 
-        text1 = [double('偏差') ,double(keyFreqChar),double('--标准'),double(keyInfreqChar),double('--弱'),double(keyWeakChar)];
+        text1 = [double('偏差---') ,double(keyDevChar),double('   标准---'),double(keyStdChar),double('   弱---'),double(keyWeakChar)];
         bounds1 = Screen('TextBounds', window, text1);
         Screen('DrawText', window, text1, xCenter - bounds1(3)/2, yCenter - 30, white);
 
@@ -959,7 +959,7 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
-        Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
+
 
         responseScreenStartTime = Screen('Flip', window);
 
