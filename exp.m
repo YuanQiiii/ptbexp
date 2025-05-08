@@ -18,11 +18,11 @@ participant.Sex = answer{3};
 participant.Handedness = answer{4};
 
 % --- 屏幕和 Psychtoolbox 设置 ---
-Screen('Preference', 'SkipSyncTests', 1);
+Screen('Preference', 'SkipSyncTests', 2);
 screens = Screen('Screens');
 screenNumber = max(screens);
-white = WhiteIndex(screenNumber);
-black = BlackIndex(screenNumber);
+white = WhiteIndex(screenNumber)
+black = BlackIndex(screenNumber)
 grey = white / 2;
 AssertOpenGL;
 InitializeMatlabOpenGL;
@@ -240,7 +240,6 @@ ListenChar(2); % 防止输入内容进入终端
 % -------------------------------------------------------------------------
 % 知情同意
 % -------------------------------------------------------------------------
-white = [255, 255, 255];
 % 显示一般说明
 Screen('TextFont', window, '-:lang=zh-cn');
 % 准备显示文本内容
@@ -362,12 +361,19 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
         responseKeysThisBlock.frequent = responseKeysThisBlock.infrequent;
         responseKeysThisBlock.infrequent = tempKey;
     end
+
+
     keyFreqChar = upper(KbName(responseKeysThisBlock.frequent)); % 获取按键字符，转为大写
     keyInfreqChar = upper(KbName(responseKeysThisBlock.infrequent));
+
+
     keyWeakChar = upper(KbName(expParams.keys.weak));
     if strcmp(keyWeakChar, 'SPACE')
         keyWeakChar = '空格键';
     end % 更友好的显示
+
+
+
     text0 = [double('Block'),double(num2str(iBlock)),double('/'),double(num2str(expParams.explicitLearning.numBlocks)),double('-----学习阶段'),double(taskModalityChinese),double('任务')];
     text1 = [double('请关注'),double(taskModalityChinese),double('刺激对')];
     text2 = double('判断该类型刺激对是“频繁”出现还是“不频繁”出现');
@@ -489,32 +495,41 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
             cue = audParams.cueTexture;
         end
         Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
-
         fixationStartTime = Screen('Flip', window);
 
         % 2. 领先刺激呈现
-
+        while (GetSecs - fixationStartTime) < currentFixationDur
+            % 等待注视点持续时间结束
+            [~, ~, keyCodeF] = KbCheck;
+            if any(keyCodeF)
+                break
+            end % 调试时允许提前退出
+        end
         Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2); % 保持注视点
-
         Screen('DrawTexture', window, visParams.textures.leading(visLeadingStimIdx));
-
-
+        % 绘制注意力提示图标
         if strcmp(attentedModality, 'visual')
             Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
         Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
-
-        leadingStimStartTime = Screen('Flip', window);
-
+        % 翻转缓冲区,记录时间节点,在此之前填充听觉刺激缓冲区
         PsychPortAudio('FillBuffer', audParams.pahandle, [audParams.waveforms.leading{audLeadingStimIdx}; audParams.waveforms.leading{audLeadingStimIdx}]); % 立体声
+        leadingStimStartTime = Screen('Flip', window);
+        % 听觉刺激与视觉刺激同时出现
         PsychPortAudio('Start', audParams.pahandle, 1, leadingStimStartTime, 0); % 立即开始, 0表示不等待
 
-        % 3. 刺激间隔 (ISI)
-        PsychPortAudio('Stop', audParams.pahandle, 1); % 停止声音，以防万一还在播放
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2);
 
+        % 3. 刺激间隔 (ISI)
+        while (GetSecs - leadingStimStartTime) < expParams.leadingStimDur
+            [~, ~, keyCodeI] = KbCheck;
+            if any(keyCodeI)
+                break
+            end
+        end
+        PsychPortAudio('Stop', audParams.pahandle, 1); % 停止声音，以防万一还在播放
+        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2); % 保持注视点
 
         if strcmp(attentedModality, 'visual')
             Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
@@ -522,12 +537,17 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
         Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
-
 
         isiStartTime = Screen('Flip', window);
 
 
         % 4. 跟随刺激呈现
+        while (GetSecs - isiStartTime) < expParams.isiDur
+            [~, ~, keyCodeT] = KbCheck;
+            if any(keyCodeT)
+                break
+            end
+        end
         Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2); % 保持注视点
 
         % 选择视觉跟随纹理 (捕获或标准)
@@ -542,8 +562,8 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
         if isCatchTrial && strcmp(catchModality, 'auditory')
             currentAudTrailingWaveform = audParams.waveforms.trailing_catch{audTrailingStimIdx};
         end
+        % 填充听觉刺激缓冲区
         PsychPortAudio('FillBuffer', audParams.pahandle, [currentAudTrailingWaveform; currentAudTrailingWaveform]);
-
 
         if strcmp(attentedModality, 'visual')
             Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
@@ -551,6 +571,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
         Screen('DrawTexture', window, cue, [], expParams.cueIconPosRect);
+
         % 听觉和视觉刺激同时产生
         trailingStimStartTime = Screen('Flip', window);
         PsychPortAudio('Start', audParams.pahandle, 1, trailingStimStartTime, 0);
@@ -566,7 +587,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
 
 
 
-        text1 = [double('频繁') ,double(keyFreqChar),double('--不频繁'),double(keyInfreqChar),double('--弱'),double(keyWeakChar)];
+        text1 = [double('频繁---') ,double(keyFreqChar),double('   不频繁---'),double(keyInfreqChar),double('   弱---'),double(keyWeakChar)];
         bounds1 = Screen('TextBounds', window, text1);
         Screen('DrawText', window, text1, xCenter - bounds1(3)/2, yCenter - 30, white);
 
@@ -627,11 +648,11 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
 
         % 6. 反馈
         if accuracy
-            feedbackColor = [0 1 0]; % 绿色
+            feedbackColor = [0 255 0]; % 绿色
         else
-            feedbackColor = [1 0 0]; % 红色
+            feedbackColor = [255 0 0]; % 红色
         end
-        Screen('DrawLines', window, allCoords, 3, feedbackColor, [xCenter yCenter], 2);
+        Screen('DrawLines', window, allCoords, 4, feedbackColor, [xCenter yCenter], 2);
         feedbackStartTime = Screen('Flip', window);
         WaitSecs(expParams.feedbackDur);
 
@@ -978,12 +999,12 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         accuracy = strcmp(responseType, correctResponseType);
 
         % 6. 反馈 (视觉：绿色/红色注视点)
-        feedbackColor = black;
-        if isnan(accuracy); feedbackText = '无有效反应。';
-        elseif accuracy; feedbackColor = [0 1 0];
-        else; feedbackColor = [1 0 0];
+        if accuracy
+            feedbackColor = [0 255 0]; % 绿色
+        else
+            feedbackColor = [255 0 0]; % 红色
         end
-        Screen('DrawLines', window, allCoords, 3, feedbackColor, [xCenter yCenter], 2);
+        Screen('DrawLines', window, allCoords, 4, feedbackColor, [xCenter yCenter], 2);
         feedbackStartTime = Screen('Flip', window);
         WaitSecs(expParams.feedbackDur);
 
