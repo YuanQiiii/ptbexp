@@ -110,7 +110,7 @@ visParams.trueTextSize = visParams.textTrueDegree * visParams.pxlpdg;
 
 Screen('TextSize', window, round(visParams.trueTextSize)); % 字体大小不能为小数
 
-
+% 字体视角
 visParams.textDegree = 1;
 visParams.textSize = visParams.textDegree * visParams.pxlpdg;
 
@@ -172,11 +172,15 @@ audParams.waveforms.trailing_catch = {tone_trailing_100 * audParams.catchVolumeM
     tone_trailing_160 * audParams.catchVolumeMultiplier};
 
 % --- 注视点 ---
-fixCrossDegree = 1;
-fixCrossDimPix = fixCrossDegree * visParams.pxlpdg; % 注视点大小
-xCoords = [-fixCrossDimPix fixCrossDimPix 0 0];
-yCoords = [0 0 -fixCrossDimPix fixCrossDimPix];
-allCoords = [xCoords; yCoords];
+fixationPointDegree = 0.5;
+fixationPointDiameterPix = fixationPointDegree* visParams.pxlpdg; % 注视点大小
+fixationPointColor = white; % 白色注视点
+% 计算注视点的外切矩形
+radius = fixationPointDiameterPix / 2;
+fixationPointRect = [xCenter - radius, yCenter - radius, xCenter + radius, yCenter + radius];
+
+
+
 
 % --- 注意力提示图标 ---
 % 加载或创建“眼睛”和“扬声器”图标
@@ -492,7 +496,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
         % --- 单个试验流程 ---
         % 1. 注视点
         currentFixationDur = expParams.fixationDurRange(1) + rand * (expParams.fixationDurRange(2) - expParams.fixationDurRange(1));
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2); % 加粗注视点
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
 
         % 绘制注意力提示图标
         if strcmp(attentedModality, 'visual')
@@ -510,7 +514,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
                 break
             end % 调试时允许提前退出
         end
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2); % 保持注视点
+
         Screen('DrawTexture', window, visParams.textures.leading(visLeadingStimIdx));
         % 绘制注意力提示图标
         if strcmp(attentedModality, 'visual')
@@ -518,9 +522,9 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
-
         % 翻转缓冲区,记录时间节点,在此之前填充听觉刺激缓冲区
         PsychPortAudio('FillBuffer', audParams.pahandle, [audParams.waveforms.leading{audLeadingStimIdx}; audParams.waveforms.leading{audLeadingStimIdx}]); % 立体声
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);% 保持注视点
         leadingStimStartTime = Screen('Flip', window);
         % 听觉刺激与视觉刺激同时出现
         PsychPortAudio('Start', audParams.pahandle, 1, leadingStimStartTime, 0); % 立即开始, 0表示不等待
@@ -534,7 +538,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
             end
         end
         PsychPortAudio('Stop', audParams.pahandle, 1); % 停止声音，以防万一还在播放
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2); % 保持注视点
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);% 保持注视点
 
         if strcmp(attentedModality, 'visual')
             Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
@@ -553,7 +557,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
                 break
             end
         end
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2); % 保持注视点
+
 
         % 选择视觉跟随纹理 (捕获或标准)
         currentVisTrailingTexture = visParams.textures.trailing(visTrailingStimIdx);
@@ -578,6 +582,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
 
 
         % 听觉和视觉刺激同时产生
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);% 保持注视点
         trailingStimStartTime = Screen('Flip', window);
         PsychPortAudio('Start', audParams.pahandle, 1, trailingStimStartTime, 0);
 
@@ -657,7 +662,7 @@ for iBlock = 1:expParams.explicitLearning.numBlocks
         else
             feedbackColor = [255 0 0]; % 红色
         end
-        Screen('DrawLines', window, allCoords, 4, feedbackColor, [xCenter yCenter], 2);
+        Screen('FillOval', window, feedbackColor, fixationPointRect);   % 注视点
         feedbackStartTime = Screen('Flip', window);
         WaitSecs(expParams.feedbackDur);
 
@@ -893,7 +898,7 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         % --- 试验流程 (与阶段一大致相同) ---
         % 1. 注视点
         currentFixationDur = expParams.fixationDurRange(1) + rand * (expParams.fixationDurRange(2) - expParams.fixationDurRange(1));
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2);
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
 
         if strcmp(attentedModality, 'visual')
             Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
@@ -905,7 +910,7 @@ for iBlock = 1:expParams.implicitTest.numBlocks
 
         % 2. 领先刺激
         while (GetSecs - fixationStartTime) < currentFixationDur; [~,~,kF]=KbCheck; if any(kF); break;end; end
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2);
+
         Screen('DrawTexture', window, visParams.textures.leading(visLeadingStimIdx));
 
         if strcmp(attentedModality, 'visual')
@@ -913,7 +918,7 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
-
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
         leadingStimStartTime = Screen('Flip', window);
         PsychPortAudio('FillBuffer', audParams.pahandle, [audParams.waveforms.leading{audLeadingStimIdx}; audParams.waveforms.leading{audLeadingStimIdx}]);
         PsychPortAudio('Start', audParams.pahandle, 1, leadingStimStartTime, 0);
@@ -921,7 +926,7 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         % 3. ISI
         while (GetSecs - leadingStimStartTime) < expParams.leadingStimDur; [~,~,kI]=KbCheck; if any(kI); break;end; end
         PsychPortAudio('Stop', audParams.pahandle, 1);
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2);
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
         if strcmp(attentedModality, 'visual')
             Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
         else
@@ -931,7 +936,8 @@ for iBlock = 1:expParams.implicitTest.numBlocks
 
         % 4. 跟随刺激
         while (GetSecs - isiStartTime) < expParams.isiDur; [~,~,kT]=KbCheck; if any(kT); break;end; end
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2);
+
+
         Screen('DrawTexture', window, currentVisTrailingTexture); % 现在使用可能偏差或捕获的纹理
         PsychPortAudio('FillBuffer', audParams.pahandle, [currentAudTrailingWaveform; currentAudTrailingWaveform]); % 可能偏差/捕获
 
@@ -941,7 +947,7 @@ for iBlock = 1:expParams.implicitTest.numBlocks
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
         end
 
-
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
         trailingStimStartTime = Screen('Flip', window);
         PsychPortAudio('Start', audParams.pahandle, 1, trailingStimStartTime, 0);
 
@@ -1004,7 +1010,7 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         else
             feedbackColor = [255 0 0]; % 红色
         end
-        Screen('DrawLines', window, allCoords, 4, feedbackColor, [xCenter yCenter], 2);
+        Screen('FillOval', window,feedbackColor, fixationPointRect);   % 注视点
         feedbackStartTime = Screen('Flip', window);
         WaitSecs(expParams.feedbackDur);
 
@@ -1245,36 +1251,41 @@ for iBlock = 1:expParams.explicitRecall.numBlocks
         % --- 试验流程 (更简单：注视点, 领先, ISI, 跟随, 反应。无捕获, 无反馈) ---
         % 1. 注视点
         currentFixationDur = expParams.fixationDurRange(1) + rand * (expParams.fixationDurRange(2) - expParams.fixationDurRange(1));
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2);
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
         fixationStartTime = Screen('Flip', window);
 
         % 2. 领先刺激 (同时呈现视觉和听觉，但只有一个与任务相关)
         while (GetSecs - fixationStartTime) < currentFixationDur; [~,~,kF]=KbCheck; if any(kF); break;end; end
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2);
+
         Screen('DrawTexture', window, visParams.textures.leading(visLeadRecallIdx));
-        leadingStimStartTime = Screen('Flip', window);
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
         PsychPortAudio('FillBuffer', audParams.pahandle, [audParams.waveforms.leading{audLeadRecallIdx}; audParams.waveforms.leading{audLeadRecallIdx}]);
+        leadingStimStartTime = Screen('Flip', window);
         PsychPortAudio('Start', audParams.pahandle, 1, leadingStimStartTime, 0);
 
         % 3. ISI
         while (GetSecs - leadingStimStartTime) < expParams.leadingStimDur; [~,~,kI]=KbCheck; if any(kI); break;end; end
         PsychPortAudio('Stop', audParams.pahandle, 1);
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2);
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
         isiStartTime = Screen('Flip', window);
 
         % 4. 跟随刺激
         while (GetSecs - isiStartTime) < expParams.isiDur; [~,~,kT]=KbCheck; if any(kT); break;end; end
-        Screen('DrawLines', window, allCoords, 4, black, [xCenter yCenter], 2);
+
         Screen('DrawTexture', window, visParams.textures.trailing(visTrailRecallIdx));
         PsychPortAudio('FillBuffer', audParams.pahandle, [audParams.waveforms.trailing{audTrailRecallIdx}; audParams.waveforms.trailing{audTrailRecallIdx}]);
+        Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
         trailingStimStartTime = Screen('Flip', window);
         PsychPortAudio('Start', audParams.pahandle, 1, trailingStimStartTime, 0);
 
         % 5. 反应屏幕
         while (GetSecs - trailingStimStartTime) < expParams.trailingStimDur; [~,~,kR]=KbCheck; if any(kR); break;end; end
         PsychPortAudio('Stop', audParams.pahandle, 1);
-        %DrawFormattedText(window, sprintf('这个刺激对在学习阶段是 频繁 (%s) 还是 不频繁 (%s)?', ...
-        % keyFreqRecallChar, keyInfreqRecallChar), 'center', 'center', black);
+
+        text1 = [double('频繁---') ,double(keyFreqRecallChar),double('   不频繁---'),double(keyInfreqRecallChar)];
+        bounds1 = Screen('TextBounds', window, text1);
+        Screen('DrawText', window, text1, xCenter - bounds1(3)/2, yCenter - 30, white);
+
         responseScreenStartTime = Screen('Flip', window);
 
         % 收集反应
