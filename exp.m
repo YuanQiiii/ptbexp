@@ -21,8 +21,8 @@ participant.Handedness = answer{4};
 Screen('Preference', 'SkipSyncTests', 2);
 screens = Screen('Screens');
 screenNumber = max(screens);
-white = WhiteIndex(screenNumber)
-black = BlackIndex(screenNumber)
+white = WhiteIndex(screenNumber);
+black = BlackIndex(screenNumber);
 grey = white / 2;
 AssertOpenGL;
 InitializeMatlabOpenGL;
