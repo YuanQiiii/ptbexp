@@ -28,8 +28,8 @@ AssertOpenGL;
 InitializeMatlabOpenGL;
 
 % 打开一个屏幕窗口
-[window, windowRect] = Screen('OpenWindow', screenNumber, grey, [0 0 1600 900]);
-% [window, windowRect] = Screen('OpenWindow', screenNumber, grey);
+%window, windowRect] = Screen('OpenWindow', screenNumber, grey, [0 0 1600 900]);
+[window, windowRect] = Screen('OpenWindow', screenNumber, grey);
 Screen('BlendFunction', window, 'GL_SRC_ALPHA', 'GL_ONE_MINUS_SRC_ALPHA'); % 启用 alpha 混合
 [xCenter, yCenter] = RectCenter(windowRect);
 
@@ -341,14 +341,15 @@ KbStrokeWait;
 % 参数设置
 
 % 标准参数
-% expParams.explicitLearning.numBlocks = 4;
-% expParams.explicitLearning.trialsPerBlock = 40;
-% expParams.explicitLearning.catchTrialsPerBlock = 8; % 4个视觉，4个听觉
+expParams.explicitLearning.numBlocks = 4;
+expParams.explicitLearning.trialsPerBlock = 40;
+expParams.explicitLearning.catchTrialsPerBlock = 8; % 4个视觉，4个听觉
 
 % 调试参数
-expParams.explicitLearning.numBlocks = 2;
-expParams.explicitLearning.trialsPerBlock = 8;
-expParams.explicitLearning.catchTrialsPerBlock = 2; % 4个视觉，4个听觉
+% expParams.explicitLearning.numBlocks = 2;
+% expParams.explicitLearning.trialsPerBlock = 8;
+% expParams.explicitLearning.catchTrialsPerBlock = 2; % 4个视觉，4个听觉
+
 % 定义Block类型 (交替进行：视觉-听觉-视觉-听觉)
 blockOrderPhase1 = repmat({'visual', 'auditory'}, 1, expParams.explicitLearning.numBlocks / 2);
 currentTrialOverall = 0; % 用于数据保存的全局试验计数器
@@ -723,6 +724,8 @@ Screen('DrawText', window, text1, xCenter - bounds1(3)/2, yCenter - visParams.te
 Screen('DrawText', window, text2, xCenter - bounds2(3)/2, yCenter + 0, white);
 Screen('Flip', window);
 KbStrokeWait;
+%
+%
 %
 %
 %
