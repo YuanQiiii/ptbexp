@@ -1056,16 +1056,20 @@ for iBlock = 1:expParams.implicitTest.numBlocks
                 end
                 % 根据转向次数更新步长
                 nextStepChangeThreshold = 0;
-                for k_step = 1:s.currentStepIndex
-                    nextStepChangeThreshold = nextStepChangeThreshold + s.reversalsToChangeStep(k_step);
+                % 修改后的循环，以防止索引越界
+                for k_loop_idx = 1:s.currentStepIndex
+                    if k_loop_idx <= length(s.reversalsToChangeStep)
+                        nextStepChangeThreshold = nextStepChangeThreshold + s.reversalsToChangeStep(k_loop_idx);
+                    else
+                        % 如果 k_loop_idx 已经超出了 s.reversalsToChangeStep 的长度
+                        % (这意味着 s.currentStepIndex 已经是最后一个步长索引，或者说所有相关的 reversals 都已累加完毕)
+                        % 则停止累加。
+                        break;
+                    end
                 end
+
                 if s.reversalCount >= nextStepChangeThreshold && s.currentStepIndex < length(s.stepSizes)
                     s.currentStepIndex = s.currentStepIndex + 1;
-                end
-                s.deviantHistory(end+1) = s.currentDeviant; % 记录当前偏差值
-
-                if strcmp(currentStaircaseModality, 'visual'); stairParams.vis = s;
-                elseif strcmp(currentStaircaseModality, 'auditory'); stairParams.aud = s;
                 end
             end
         end
