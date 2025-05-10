@@ -3,7 +3,8 @@
 % -------------------------------------------------------------------------
 % 初始化随机数种子
 rng('shuffle');
-% --- 参与者信息 ---
+
+% --- 参与者信息输入框 ---
 prompt = {'参与者ID:', '年龄:', '性别 (M/F):', '利手 (L/R):'};
 dlgtitle = '参与者信息';
 dims = [1 35; 1 35; 1 35; 1 35];
@@ -16,6 +17,8 @@ participant.ID = answer{1};
 participant.Age = str2double(answer{2});
 participant.Sex = answer{3};
 participant.Handedness = answer{4};
+
+
 
 % --- 屏幕和 Psychtoolbox 设置 ---
 Screen('Preference', 'SkipSyncTests', 2);
@@ -32,6 +35,8 @@ InitializeMatlabOpenGL;
 [window, windowRect] = Screen('OpenWindow', screenNumber, grey);
 Screen('BlendFunction', window, 'GL_SRC_ALPHA', 'GL_ONE_MINUS_SRC_ALPHA'); % 启用 alpha 混合
 [xCenter, yCenter] = RectCenter(windowRect);
+
+% 使用结构体来管理实验参数
 
 % --- 时间信息 (单位：秒) ---
 expParams.fixationDurRange = [0.750, 1.500]; % 随机注视点持续时间范围
@@ -51,7 +56,7 @@ expParams.keys.weak = KbName('space');
 expParams.keys.deviant = KbName('d');
 expParams.keys.standard = KbName('s');
 
-
+% 来自Psychtoolbox的文档
 % 一些笔记本电脑用户遇到了“按键卡住”的问题：
 % 某些按键总是报告为“按下”状态，因此 KbWait 会立即返回，而 KbCheck 总是报告 keyIsDown == 1。
 % 这通常是由于特殊功能键造成的。
@@ -74,8 +79,8 @@ visMatrix2 = struct('v0_t45', 0.25, 'v0_t135', 0.75, 'v90_t45', 0.75, 'v90_t135'
 % 听觉矩阵
 audMatrix1 = struct('a1000_t100', 0.75, 'a1000_t160', 0.25, 'a1600_t100', 0.25, 'a1600_t160', 0.75);
 audMatrix2 = struct('a1000_t100', 0.25, 'a1000_t160', 0.75, 'a1600_t100', 0.75, 'a1600_t160', 0.25);
-% 按照id分配转移矩阵
 
+% 按照id分配转移矩阵
 participantID_num = str2double(regexp(participant.ID, '\d+', 'match')); % 提取ID中的数字部分
 
 if isempty(participantID_num)
@@ -99,21 +104,23 @@ else % 参与者 4, 8, 12... (mod(X,4)==0)
 end
 
 % --- 刺激参数 ---
-% 视觉刺激 (Gabor 光栅)
+% 视觉刺激
 [ResX, ResY] = Screen('WindowSize', window);
 [width, height] = Screen('DisplaySize', window);
 visParams.vdist = 50; % 观察距离（单位：cm）
 visParams.pxlpdg = deg2pix(1, sqrt(width^2 + height^2)/25.4, ResX, visParams.vdist, ResY/ResX); % 每度像素数
 
+% 字体真实视角
 visParams.textTrueDegree = 0.9;
 visParams.trueTextSize = visParams.textTrueDegree * visParams.pxlpdg;
 
 Screen('TextSize', window, round(visParams.trueTextSize)); % 字体大小不能为小数
 
-% 字体视角
+% 字体矩形视角
 visParams.textDegree = 1;
 visParams.textSize = visParams.textDegree * visParams.pxlpdg;
 
+% Gabor光栅参数
 visParams.sizeDeg = 10; % 视角大小 (度)
 visParams.spatialFreqCyclesPerDeg = 0.7; % 空间频率 (周/度)，与 mygabor.m 一致
 visParams.contrast = 1.0; % 正常试验的对比度
@@ -129,23 +136,22 @@ visParams.orientations.trailing_desc = {'顺时针', '逆时针'};
 visParams.orientations.trailing_mygabor = [45, 135];
 
 % 预生成 Gabor 纹理
-gabor_leading_vert = mygabor(visParams.pxlpdg, visParams.sizeDeg, visParams.orientations.leading_mygabor(1),visParams.contrast); % 垂直
-gabor_leading_horz = mygabor(visParams.pxlpdg, visParams.sizeDeg, visParams.orientations.leading_mygabor(2),visParams.contrast); % 水平
-gabor_trailing_cw = mygabor(visParams.pxlpdg, visParams.sizeDeg, visParams.orientations.trailing_mygabor(1),visParams.contrast);  % 顺时针
-gabor_trailing_ccw = mygabor(visParams.pxlpdg, visParams.sizeDeg, visParams.orientations.trailing_mygabor(2),visParams.contrast); % 逆时针
+gabor_leading_vert = mygabor(visParams.pxlpdg, visParams.sizeDeg, visParams.orientations.leading_mygabor(1), visParams.contrast); % 垂直
+gabor_leading_horz = mygabor(visParams.pxlpdg, visParams.sizeDeg, visParams.orientations.leading_mygabor(2), visParams.contrast); % 水平
+gabor_trailing_cw = mygabor(visParams.pxlpdg, visParams.sizeDeg, visParams.orientations.trailing_mygabor(1), visParams.contrast);  % 顺时针
+gabor_trailing_ccw = mygabor(visParams.pxlpdg, visParams.sizeDeg, visParams.orientations.trailing_mygabor(2), visParams.contrast); % 逆时针
 
-visParams.textures.leading(1) = Screen('MakeTexture', window, gabor_leading_vert*white);
-visParams.textures.leading(2) = Screen('MakeTexture', window, gabor_leading_horz*white);
-visParams.textures.trailing(1) = Screen('MakeTexture', window, gabor_trailing_cw*white);
-visParams.textures.trailing(2) = Screen('MakeTexture', window, gabor_trailing_ccw*white);
+% 使用数组管理已经生成的纹理
+visParams.textures.leading(1) = Screen('MakeTexture', window, gabor_leading_vert * white);
+visParams.textures.leading(2) = Screen('MakeTexture', window, gabor_leading_horz * white);
+visParams.textures.trailing(1) = Screen('MakeTexture', window, gabor_trailing_cw * white);
+visParams.textures.trailing(2) = Screen('MakeTexture', window, gabor_trailing_ccw * white);
 
 % 捕获试验刺激参数 (较低对比度)
-
 gabor_trailing_cw_catch = mygabor(visParams.pxlpdg, visParams.sizeDeg, visParams.orientations.trailing_mygabor(1), visParams.catchContrast) ;
 gabor_trailing_ccw_catch = mygabor(visParams.pxlpdg, visParams.sizeDeg, visParams.orientations.trailing_mygabor(2), visParams.catchContrast);
 visParams.textures.trailing_catch(1) = Screen('MakeTexture', window, gabor_trailing_cw_catch  * white);
 visParams.textures.trailing_catch(2) = Screen('MakeTexture', window, gabor_trailing_ccw_catch  * white);
-
 
 % 听觉刺激 (纯音)
 audParams.samplingRate = 44100; % Hz
@@ -167,20 +173,19 @@ audParams.waveforms.leading = {tone_leading_1000, tone_leading_1600};
 audParams.waveforms.trailing = {tone_trailing_100, tone_trailing_160};
 
 % 捕获试验刺激参数 (较低音量)
-audParams.catchVolumeMultiplier = 0.3; % 示例：捕获试验的音量乘数
+audParams.catchVolumeMultiplier = 0.3; % 捕获试验的音量乘数
+
 audParams.waveforms.trailing_catch = {tone_trailing_100 * audParams.catchVolumeMultiplier, ...
     tone_trailing_160 * audParams.catchVolumeMultiplier};
 
 % --- 注视点 ---
+% 注视点视角
 fixationPointDegree = 0.5;
 fixationPointDiameterPix = fixationPointDegree* visParams.pxlpdg; % 注视点大小
 fixationPointColor = white; % 白色注视点
 % 计算注视点的外切矩形
 radius = fixationPointDiameterPix / 2;
 fixationPointRect = [xCenter - radius, yCenter - radius, xCenter + radius, yCenter + radius];
-
-
-
 
 % --- 注意力提示图标 ---
 % 加载或创建“眼睛”和“扬声器”图标
@@ -201,6 +206,7 @@ expData.explicitLearning = [];
 expData.implicitTest = [];
 expData.explicitRecall = [];
 trialCountGlobal = 0; % 用于唯一的试验ID（如果需要）
+
 
 % --- Staircase 初始化 (用于内隐测试阶段) ---
 % 视觉 Staircase
@@ -246,7 +252,8 @@ ListenChar(2); % 防止输入内容进入终端
 % -------------------------------------------------------------------------
 % 显示一般说明
 Screen('TextFont', window, '-:lang=zh-cn');
-% 准备显示文本内容
+
+% 准备显示文本内容，后续均会采用这种方法
 line1 = '欢迎参加本次实验';
 line2 = '(按任意键继续)';
 % 转换文本为字节数组
@@ -260,7 +267,7 @@ bounds2 = Screen('TextBounds', window, text2);
 Screen('DrawText', window, text1, xCenter - bounds1(3)/2, yCenter - visParams.textSize, white);
 Screen('DrawText', window, text2, xCenter - bounds2(3)/2, yCenter , white);
 Screen('Flip', window);
-
+% 等待用户响应
 KbStrokeWait;
 
 
@@ -1172,7 +1179,12 @@ recallBlockOrder = Shuffle({'visual', 'auditory'}); % 随机化视觉/听觉回�
 
 for iBlock = 1:expParams.explicitRecall.numBlocks
     recallModality = recallBlockOrder{iBlock}; % 'visual' 或 'auditory'
-    if strcmp(recallModality, 'visual'); taskModalityChinese = '视觉'; else; taskModalityChinese = '听觉'; end
+
+    if strcmp(recallModality, 'visual')
+        taskModalityChinese = '视觉';
+    else
+        taskModalityChinese = '听觉';
+    end
 
     % 定义当前模态的所有4种可能的刺激对
     stimulusPairs_definitions = []; % [leading_val, trailing_val]
@@ -1259,6 +1271,11 @@ for iBlock = 1:expParams.explicitRecall.numBlocks
         % 1. 注视点
         currentFixationDur = expParams.fixationDurRange(1) + rand * (expParams.fixationDurRange(2) - expParams.fixationDurRange(1));
         Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
+        if strcmp(attentedModality, 'visual')
+            Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
+        else
+            Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
+        end
         fixationStartTime = Screen('Flip', window);
 
         % 2. 领先刺激 (同时呈现视觉和听觉，但只有一个与任务相关)
@@ -1267,6 +1284,11 @@ for iBlock = 1:expParams.explicitRecall.numBlocks
         Screen('DrawTexture', window, visParams.textures.leading(visLeadRecallIdx));
         Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
         PsychPortAudio('FillBuffer', audParams.pahandle, [audParams.waveforms.leading{audLeadRecallIdx}; audParams.waveforms.leading{audLeadRecallIdx}]);
+        if strcmp(attentedModality, 'visual')
+            Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
+        else
+            Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
+        end
         leadingStimStartTime = Screen('Flip', window);
         PsychPortAudio('Start', audParams.pahandle, 1, leadingStimStartTime, 0);
 
@@ -1274,6 +1296,11 @@ for iBlock = 1:expParams.explicitRecall.numBlocks
         while (GetSecs - leadingStimStartTime) < expParams.leadingStimDur; [~,~,kI]=KbCheck; if any(kI); break;end; end
         PsychPortAudio('Stop', audParams.pahandle, 1);
         Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
+        if strcmp(attentedModality, 'visual')
+            Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
+        else
+            Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
+        end
         isiStartTime = Screen('Flip', window);
 
         % 4. 跟随刺激
@@ -1282,6 +1309,11 @@ for iBlock = 1:expParams.explicitRecall.numBlocks
         Screen('DrawTexture', window, visParams.textures.trailing(visTrailRecallIdx));
         PsychPortAudio('FillBuffer', audParams.pahandle, [audParams.waveforms.trailing{audTrailRecallIdx}; audParams.waveforms.trailing{audTrailRecallIdx}]);
         Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
+        if strcmp(attentedModality, 'visual')
+            Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
+        else
+            Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
+        end
         trailingStimStartTime = Screen('Flip', window);
         PsychPortAudio('Start', audParams.pahandle, 1, trailingStimStartTime, 0);
 
@@ -1292,6 +1324,11 @@ for iBlock = 1:expParams.explicitRecall.numBlocks
         text1 = [double('频繁---') ,double(keyFreqRecallChar),double('   不频繁---'),double(keyInfreqRecallChar)];
         bounds1 = Screen('TextBounds', window, text1);
         Screen('DrawText', window, text1, xCenter - bounds1(3)/2, yCenter - 30, white);
+        if strcmp(attentedModality, 'visual')
+            Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
+        else
+            Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
+        end
 
         responseScreenStartTime = Screen('Flip', window);
 
