@@ -888,7 +888,6 @@ for iBlock = 1:expParams.implicitTest.numBlocks
         % 如果是视觉捕获试验，则覆盖
         if isCatchTrial && strcmp(catchModality, 'visual')
             currentVisTrailingTexture = visParams.textures.trailing_catch(visTrailingBaseIdx); % 捕获纹理
-            if targetIsDeviantStim && strcmp(attentedModality, 'visual'); Screen('Close', currentVisTrailingTexture); end % 如果之前为偏差创建了纹理，先关闭
         end
 
 
@@ -1077,6 +1076,21 @@ for iBlock = 1:expParams.implicitTest.numBlocks
 
                 if s.reversalCount >= nextStepChangeThreshold && s.currentStepIndex < length(s.stepSizes)
                     s.currentStepIndex = s.currentStepIndex + 1;
+                end
+                % 确保 s.currentDeviant 不会变得过小或为负
+                if strcmp(currentStaircaseModality, 'visual')
+                    s.currentDeviant = max(0.1, s.currentDeviant); % 视觉角度的示例最小值
+                elseif strcmp(currentStaircaseModality, 'auditory')
+                    s.currentDeviant = max(0.5, s.currentDeviant); % 听觉赫兹的示例最小值 (根据需要调整)
+                end
+
+                s.deviantHistory(end+1) = s.currentDeviant;
+
+                % 更新持久性的 stairParams 结构体
+                if strcmp(currentStaircaseModality, 'visual')
+                    stairParams.vis = s;
+                elseif strcmp(currentStaircaseModality, 'auditory')
+                    stairParams.aud = s;
                 end
             end
         end
