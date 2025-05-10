@@ -6,7 +6,7 @@ clear; close all; clc;
 
 disp('开始单被试数据分析 (图A & B)...');
 
-%% 0. 设置
+% 0. 设置
 % -------------------------------------------------------------------------
 % 颜色定义 (根据Fig. 2)
 colors.unexpected_target = [0.7, 0, 0];       % 暗红色
@@ -14,7 +14,7 @@ colors.expected_target = [0, 0.6, 0.7];       % 蓝绿色/青色
 colors.unexpected_distractor = [1, 0.6, 0.6]; % 浅红色
 colors.expected_distractor = [0.7, 0.9, 1];   % 浅蓝色
 
-%% 1. 加载单个参与者的数据
+% 1. 加载单个参与者的数据
 % -------------------------------------------------------------------------
 [fileName, filePath] = uigetfile('DATA_*_Phase1_backup.mat', '请选择单个参与者的数据文件');
 if isequal(fileName, 0)

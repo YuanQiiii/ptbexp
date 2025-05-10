@@ -173,7 +173,7 @@ audParams.waveforms.leading = {tone_leading_1000, tone_leading_1600};
 audParams.waveforms.trailing = {tone_trailing_100, tone_trailing_160};
 
 % 捕获试验刺激参数 (较低音量)
-audParams.catchVolumeMultiplier = 0.3; % 捕获试验的音量乘数
+audParams.catchVolumeMultiplier = 0.1; % 捕获试验的音量乘数
 
 audParams.waveforms.trailing_catch = {tone_trailing_100 * audParams.catchVolumeMultiplier, ...
     tone_trailing_160 * audParams.catchVolumeMultiplier};
@@ -1296,7 +1296,7 @@ for iBlock = 1:expParams.explicitRecall.numBlocks
         while (GetSecs - leadingStimStartTime) < expParams.leadingStimDur; [~,~,kI]=KbCheck; if any(kI); break;end; end
         PsychPortAudio('Stop', audParams.pahandle, 1);
         Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
-        if strcmp(attentedModality, 'visual')
+        if strcmp(recallModality, 'visual')
             Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
@@ -1309,7 +1309,7 @@ for iBlock = 1:expParams.explicitRecall.numBlocks
         Screen('DrawTexture', window, visParams.textures.trailing(visTrailRecallIdx));
         PsychPortAudio('FillBuffer', audParams.pahandle, [audParams.waveforms.trailing{audTrailRecallIdx}; audParams.waveforms.trailing{audTrailRecallIdx}]);
         Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
-        if strcmp(attentedModality, 'visual')
+        if strcmp(recallModality, 'visual')
             Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
@@ -1324,7 +1324,7 @@ for iBlock = 1:expParams.explicitRecall.numBlocks
         text1 = [double('频繁---') ,double(keyFreqRecallChar),double('   不频繁---'),double(keyInfreqRecallChar)];
         bounds1 = Screen('TextBounds', window, text1);
         Screen('DrawText', window, text1, xCenter - bounds1(3)/2, yCenter - 30, white);
-        if strcmp(attentedModality, 'visual')
+        if strcmp(recallModality, 'visual')
             Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
