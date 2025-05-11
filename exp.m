@@ -1285,7 +1285,7 @@ for iBlock = 1:expParams.explicitRecall.numBlocks
         % 1. 注视点
         currentFixationDur = expParams.fixationDurRange(1) + rand * (expParams.fixationDurRange(2) - expParams.fixationDurRange(1));
         Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
-        if strcmp(attentedModality, 'visual')
+        if strcmp(recallModality, 'visual')
             Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
@@ -1298,7 +1298,7 @@ for iBlock = 1:expParams.explicitRecall.numBlocks
         Screen('DrawTexture', window, visParams.textures.leading(visLeadRecallIdx));
         Screen('FillOval', window, fixationPointColor, fixationPointRect);   % 注视点
         PsychPortAudio('FillBuffer', audParams.pahandle, [audParams.waveforms.leading{audLeadRecallIdx}; audParams.waveforms.leading{audLeadRecallIdx}]);
-        if strcmp(attentedModality, 'visual')
+        if strcmp(recallModality, 'visual')
             Screen('DrawTexture', window, visParams.cueTexture, [], expParams.cueIconPosRect);
         else
             Screen('DrawTexture', window, audParams.cueTexture, [], expParams.cueIconPosRect);
