@@ -1,527 +1,356 @@
-% MATLAB 脚本：用于绘制心理物理实验结果图
-% 功能：加载实验数据，并根据不同实验阶段绘制准确率、反应时、阶梯阈限等图表。
+% 扩展的实验数据分析脚本
+% 分析三个阶段：明确学习、内隐测试、明确回忆
+% 计算各条件下，被试在不同block间准确率的均值和标准差，并为每个主要分析绘制单独的柱状图窗口。
 
-% --- 初始化 ---
-clear; % 清空工作区变量
-clc;   % 清空命令行窗口
-close all; % 关闭所有已打开的图形窗口
+clear; close all; clc;
 
-fprintf('开始执行实验数据绘图脚本...\n');
+disp('开始多阶段数据分析 (每个主要分析在单独窗口)...');
 
-% --- 加载数据 ---
-% 提示用户通过对话框选择包含实验数据的 .mat 文件
-[fileName, pathName] = uigetfile('*.mat', '请选择您的实验数据文件 (例如 DATA_PARTICIPANTID_FINAL.mat)');
+% 0. 设置
+% -------------------------------------------------------------------------
+% 颜色定义
+colors.phase1_unexpected_target = [0.7, 0, 0];       % 暗红色 (P1 非预期目标)
+colors.phase1_expected_target = [0, 0.6, 0.7];       % 蓝绿色 (P1 预期目标)
+colors.phase1_unexpected_distractor = [1, 0.6, 0.6]; % 浅红色 (P1 非预期干扰物)
+colors.phase1_expected_distractor = [0.7, 0.9, 1];   % 浅蓝色 (P1 预期干扰物)
 
-% 检查用户是否取消了文件选择
-if isequal(fileName, 0) || isequal(pathName, 0)
-    disp('用户取消了文件选择，脚本终止。');
+colors.phase2_standard = [0.2, 0.5, 0.8];      % 蓝色 (P2 标准)
+colors.phase2_deviant = [0.8, 0.2, 0.2];       % 红色 (P2 偏差)
+
+colors.phase3_infrequent = [0.8, 0.4, 0.1];    % 橙色 (P3 非频繁)
+colors.phase3_frequent = [0.1, 0.6, 0.3];      % 绿色 (P3 频繁)
+
+
+% 1. 加载单个参与者的数据
+% -------------------------------------------------------------------------
+[fileName, filePath] = uigetfile('DATA_*_FINAL.mat', '请选择单个参与者的最终数据文件 (DATA_xxx_FINAL.mat)');
+if isequal(fileName, 0)
+    disp('用户取消选择，分析中止。');
     return;
-else
-    % 构建完整的文件路径
-    fullFilePath = fullfile(pathName, fileName);
-    fprintf('正在加载数据文件: %s\n', fullFilePath);
 end
+fullFilePath = fullfile(filePath, fileName);
+fprintf('正在加载参与者数据: %s\n', fullFilePath);
 
-% 尝试加载数据文件
 try
     loadedData = load(fullFilePath);
-    fprintf('数据加载成功。\n');
-catch ME % 如果加载失败，则捕获错误信息
-    fprintf('加载数据文件失败: %s\n', ME.message);
-    fprintf('请确保选择的是正确的 .mat 文件，并且文件未损坏。\n');
-    return;
+    participantID = loadedData.participant.ID; % 获取参与者ID
+    expData = loadedData.expData;
+catch ME
+    error('加载或处理参与者 %s 的数据时出错: %s', fileName, ME.message);
 end
 
-% --- 数据校验与提取 ---
-% 检查核心数据结构是否存在于加载的数据中
-if ~isfield(loadedData, 'expData')
-    disp('错误: 加载的数据中未找到核心的 ''expData'' 结构。脚本无法继续。');
-    return;
-end
-expData = loadedData.expData;
+disp(['参与者 ', char(participantID),' 数据加载完毕。']);
 
-% 提取参与者信息 (如果存在)
-if isfield(loadedData, 'participant') && isfield(loadedData.participant, 'ID')
-    participantID = loadedData.participant.ID;
-    fprintf('参与者ID: %s\n', participantID);
-else
-    participantID = '未知参与者';
-    disp('警告: 未找到参与者ID，图表标题将使用默认值。');
-end
-
-% 提取阶梯参数 (如果存在，主要用于内隐测试阶段)
-stairParams = []; % 初始化
-if isfield(loadedData, 'stairParams')
-    stairParams = loadedData.stairParams;
-end
-
-% --- 绘图参数和颜色定义 ---
-% 为不同条件定义颜色，方便区分
-colors.visual = [0 0.4470 0.7410];    % 蓝色 (视觉)
-colors.auditory = [0.8500 0.3250 0.0980];  % 橙色 (听觉)
-colors.frequent = [0.1 0.7 0.1];        % 深绿色 (频繁)
-colors.infrequent = [0.8 0.1 0.1];      % 深红色 (不频繁)
-colors.deviant = [0.6350 0.0780 0.1840]; % 暗红色 (偏差)
-colors.standard = [0.4660 0.6740 0.1880];% 橄榄绿 (标准)
-colors.catch = [0.5 0.5 0.5];          % 灰色 (捕获试验)
-
-lineWidth = 1.5; % 定义绘图线条宽度
-markerSize = 6;  % 定义标记点大小
-
-% --- 阶段一：明确学习阶段 (Explicit Learning) ---
+% -------------------------------------------------------------------------
+% 阶段一：明确学习阶段 (Explicit Learning)
+% -------------------------------------------------------------------------
+disp('--- 开始分析阶段一：明确学习 ---');
 if isfield(expData, 'explicitLearning') && ~isempty(expData.explicitLearning)
-    fprintf('\n--- 正在处理阶段一：明确学习阶段数据 ---\n');
-    dataPhase1 = expData.explicitLearning;
+    trialsPhase1 = struct2table(expData.explicitLearning, 'AsArray', true);
 
-    % 获取总的Block数量
-    if isfield(dataPhase1, 'block') && ~isempty([dataPhase1.block])
-        numBlocksPhase1 = max([dataPhase1.block]);
-    else
-        disp('警告: 学习阶段数据中缺少 ''block'' 字段或为空。无法按Block分析。');
-        numBlocksPhase1 = 0;
+    % 添加目标预期和干扰物预期列
+    trialsPhase1.targetExpected = false(height(trialsPhase1), 1);
+    trialsPhase1.distractorExpected = false(height(trialsPhase1), 1);
+    for iTrial = 1:height(trialsPhase1)
+        if strcmp(trialsPhase1.attentedModality{iTrial}, 'visual')
+            trialsPhase1.targetExpected(iTrial) = trialsPhase1.visTransitionExpected(iTrial);
+            trialsPhase1.distractorExpected(iTrial) = trialsPhase1.audTransitionExpected(iTrial);
+        elseif strcmp(trialsPhase1.attentedModality{iTrial}, 'auditory')
+            trialsPhase1.targetExpected(iTrial) = trialsPhase1.audTransitionExpected(iTrial);
+            trialsPhase1.distractorExpected(iTrial) = trialsPhase1.visTransitionExpected(iTrial);
+        end
     end
 
-    % 初始化存储每个Block数据的变量
-    accuracyPerBlockVis = NaN(1, numBlocksPhase1);
-    rtPerBlockVis = NaN(1, numBlocksPhase1);
-    accuracyPerBlockAud = NaN(1, numBlocksPhase1);
-    rtPerBlockAud = NaN(1, numBlocksPhase1);
+    % 确保 accuracy 和 isCatchTrial 是逻辑类型
+    if isnumeric(trialsPhase1.accuracy)
+        trialsPhase1.accuracy = logical(trialsPhase1.accuracy);
+    end
+    if isnumeric(trialsPhase1.isCatchTrial)
+        trialsPhase1.isCatchTrial = logical(trialsPhase1.isCatchTrial);
+    end
 
-    % 初始化存储频繁/不频繁判断准确率的变量
-    accFrequentVis_Overall = [];
-    accInfrequentVis_Overall = [];
-    accFrequentAud_Overall = [];
-    accInfrequentAud_Overall = [];
+    nonCatchTrialsP1 = trialsPhase1(~trialsPhase1.isCatchTrial, :);
 
-    for b = 1:numBlocksPhase1
-        % 筛选当前Block的试验
-        trialsInBlock = dataPhase1([dataPhase1.block] == b);
-        if isempty(trialsInBlock)
-            continue; % 如果某个Block没有数据，则跳过
-        end
+    if isempty(nonCatchTrialsP1)
+        disp('阶段一数据中没有非捕获试验。');
+    else
+        blockIDsP1 = unique(nonCatchTrialsP1.block);
+        numBlocksP1 = length(blockIDsP1);
 
-        currentModality = trialsInBlock(1).attentedModality; % 获取当前Block的注意模态
+        % --- 图1: 阶段一 - 目标预期性准确率 ---
+        figure('Name', ['P1 目标预期性 - ', char(participantID)], 'Position', [100, 600, 400, 400]);
+        axA = axes;
+        hold(axA, 'on');
+        title(axA, {'阶段一: 目标预期性', ['参与者: ', char(participantID)]});
+        ylabel(axA, '正确率 (%)');
+        set(axA, 'XTick', [1, 2], 'XTickLabel', {'非预期目标', '预期目标'}, 'XLim', [0.5, 2.5], 'YLim', [0, 100]);
 
-        % 排除捕获试验 (Catch Trials) 进行准确率和反应时分析
-        nonCatchTrials = trialsInBlock([trialsInBlock.isCatchTrial] == false);
+        block_acc_uex_target = [];
+        block_acc_ex_target = [];
 
-        if ~isempty(nonCatchTrials)
-            % 计算当前Block的平均准确率
-            currentBlockAccuracy = mean([nonCatchTrials.accuracy], 'omitnan');
-            % 计算当前Block正确反应的平均反应时间
-            correctTrials = nonCatchTrials([nonCatchTrials.accuracy] == true);
-            if ~isempty(correctTrials)
-                currentBlockRT = mean([correctTrials.rt], 'omitnan');
+        for iB = 1:numBlocksP1
+            currentBlockID = blockIDsP1(iB);
+            blockData = nonCatchTrialsP1(nonCatchTrialsP1.block == currentBlockID, :);
+
+            uex_target_trials_block = blockData(~blockData.targetExpected, :);
+            if ~isempty(uex_target_trials_block)
+                block_acc_uex_target = [block_acc_uex_target; mean(uex_target_trials_block.accuracy) * 100];
             else
-                currentBlockRT = NaN;
+                block_acc_uex_target = [block_acc_uex_target; NaN];
             end
 
-            % 根据注意模态存储数据
-            if strcmp(currentModality, 'visual')
-                accuracyPerBlockVis(b) = currentBlockAccuracy;
-                rtPerBlockVis(b) = currentBlockRT;
-                % 收集视觉任务中对“频繁”和“不频繁”转换的判断准确性
-                for t = 1:length(nonCatchTrials)
-                    % 检查试验是否为非捕获试验 (虽然我们已经筛选过，但为了逻辑清晰再次确认)
-                    if ~nonCatchTrials(t).isCatchTrial
-                        % 判断当前注意模态下的转换是否为预期（高概率）
-                        isExpectedTransition = nonCatchTrials(t).visTransitionExpected;
-                        if isExpectedTransition % 高概率转换，正确答案是 'frequent'
-                            accFrequentVis_Overall = [accFrequentVis_Overall, nonCatchTrials(t).accuracy];
-                        else % 低概率转换，正确答案是 'infrequent'
-                            accInfrequentVis_Overall = [accInfrequentVis_Overall, nonCatchTrials(t).accuracy];
-                        end
-                    end
-                end
-            elseif strcmp(currentModality, 'auditory')
-                accuracyPerBlockAud(b) = currentBlockAccuracy;
-                rtPerBlockAud(b) = currentBlockRT;
-                for t = 1:length(nonCatchTrials)
-                    if ~nonCatchTrials(t).isCatchTrial
-                        isExpectedTransition = nonCatchTrials(t).audTransitionExpected;
-                        if isExpectedTransition
-                            accFrequentAud_Overall = [accFrequentAud_Overall, nonCatchTrials(t).accuracy];
-                        else
-                            accInfrequentAud_Overall = [accInfrequentAud_Overall, nonCatchTrials(t).accuracy];
-                        end
-                    end
-                end
+            ex_target_trials_block = blockData(blockData.targetExpected, :);
+            if ~isempty(ex_target_trials_block)
+                block_acc_ex_target = [block_acc_ex_target; mean(ex_target_trials_block.accuracy) * 100];
+            else
+                block_acc_ex_target = [block_acc_ex_target; NaN];
             end
         end
-    end
 
-    % 绘制学习阶段准确率随Block变化的曲线
-    figure('Name', sprintf('P%s - 学习阶段 - 准确率', participantID), 'NumberTitle', 'off');
-    hold on;
-    validVisBlocks = find(~isnan(accuracyPerBlockVis)); % 找到有数据的视觉Block
-    validAudBlocks = find(~isnan(accuracyPerBlockAud)); % 找到有数据的听觉Block
-    if ~isempty(validVisBlocks)
-        plot(validVisBlocks, accuracyPerBlockVis(validVisBlocks), 'o-', 'LineWidth', lineWidth, 'Color', colors.visual, 'MarkerSize', markerSize, 'DisplayName', '视觉任务');
-    end
-    if ~isempty(validAudBlocks)
-        plot(validAudBlocks, accuracyPerBlockAud(validAudBlocks), 's-', 'LineWidth', lineWidth, 'Color', colors.auditory, 'MarkerSize', markerSize, 'DisplayName', '听觉任务');
-    end
-    hold off;
-    xlabel('Block 序号');
-    ylabel('平均准确率 (非捕获试验)');
-    title(sprintf('参与者 %s: 学习阶段准确率（按Block）', participantID));
-    legend('show', 'Location', 'best');
-    ylim([0 1.1]); % 设置Y轴范围为0到1.1，方便观察
-    grid on; % 添加网格线
+        mean_uex_target = mean(block_acc_uex_target); % 使用 mean
+        std_uex_target  = std(block_acc_uex_target);  % 使用 std
+        if sum(~isnan(block_acc_uex_target)) < 2, std_uex_target = 0; end
 
-    % 绘制学习阶段反应时间随Block变化的曲线
-    figure('Name', sprintf('P%s - 学习阶段 - 反应时间', participantID), 'NumberTitle', 'off');
-    hold on;
-    if ~isempty(validVisBlocks)
-        plot(validVisBlocks, rtPerBlockVis(validVisBlocks), 'o-', 'LineWidth', lineWidth, 'Color', colors.visual, 'MarkerSize', markerSize, 'DisplayName', '视觉任务');
-    end
-    if ~isempty(validAudBlocks)
-        plot(validAudBlocks, rtPerBlockAud(validAudBlocks), 's-', 'LineWidth', lineWidth, 'Color', colors.auditory, 'MarkerSize', markerSize, 'DisplayName', '听觉任务');
-    end
-    hold off;
-    xlabel('Block 序号');
-    ylabel('平均反应时间 (秒, 正确非捕获试验)');
-    title(sprintf('参与者 %s: 学习阶段反应时间（按Block）', participantID));
-    legend('show', 'Location', 'best');
-    % 动态调整Y轴上限，如果所有RT都很小，则上限不会太大
-    allRTs = [rtPerBlockVis(~isnan(rtPerBlockVis)), rtPerBlockAud(~isnan(rtPerBlockAud))];
-    if ~isempty(allRTs) && any(allRTs > 0)
-        ylim([0 max(allRTs)*1.1 + 0.1]); % Y轴从0开始, 留出一点上边距
-    else
-        ylim([0 1]); % 如果没有有效RT数据，设置一个默认范围
-    end
-    grid on;
+        mean_ex_target = mean(block_acc_ex_target);
+        std_ex_target  = std(block_acc_ex_target);
+        if sum(~isnan(block_acc_ex_target)) < 2, std_ex_target = 0; end
 
-    % 绘制学习阶段对“频繁”与“不频繁”转换判断的总体准确率
-    % 注意：这里的准确率是指，当实际是频繁转换时，被试判断为“频繁”的比例（或准确率），反之亦然。
-    figure('Name', sprintf('P%s - 学习阶段 - 频繁/不频繁判断准确率', participantID), 'NumberTitle', 'off');
-    subplot(1,2,1); % 视觉任务
-    meanAccFreqVis = mean(accFrequentVis_Overall, 'omitnan'); % 对实际频繁转换的判断准确率
-    meanAccInfreqVis = mean(accInfrequentVis_Overall, 'omitnan'); % 对实际不频繁转换的判断准确率
+        barA = bar(axA, [1, 2], [mean_uex_target, mean_ex_target], 0.6);
+        barA.FaceColor = 'flat';
+        barA.CData(1,:) = colors.phase1_unexpected_target;
+        barA.CData(2,:) = colors.phase1_expected_target;
 
-    if ~isnan(meanAccFreqVis) || ~isnan(meanAccInfreqVis) % 只要有一个不是NaN就尝试绘图
-        barDataVis = [meanAccFreqVis, meanAccInfreqVis];
-        barLabelsVis = {'对“频繁”转换的判断准确率', '对“不频繁”转换的判断准确率'};
-        validBarsVis = ~isnan(barDataVis); % 找到非NaN的数据
-
-        if any(validBarsVis)
-            bVis = bar(find(validBarsVis), barDataVis(validBarsVis), 'FaceColor', 'flat');
-            % 为有效的柱子设置颜色
-            colorMapVis = [colors.frequent; colors.infrequent];
-            barColorsVis = colorMapVis(validBarsVis,:);
-            for i = 1:size(bVis.CData,1) % bVis.CData 可能因版本而异，确保兼容
-                if size(bVis.CData,2) == 3 % R2017b and later
-                    bVis.CData(i,:) = barColorsVis(i,:);
-                end
-            end
-
-            set(gca, 'XTick', 1:sum(validBarsVis), 'XTickLabel', barLabelsVis(validBarsVis));
-            ylabel('准确率');
-            title('视觉任务');
-            ylim([0 1.1]);
-            grid on;
-            % 在柱状图上显示数值
-            for k = 1:length(find(validBarsVis))
-                idx = find(validBarsVis);
-                text(k, barDataVis(idx(k)), sprintf('%.2f', barDataVis(idx(k))), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');
-            end
-        else
-            title('视觉任务 (数据不足)');
+        if ~isnan(mean_uex_target) && ~isnan(mean_ex_target)
+            erA = errorbar(axA, [1, 2], [mean_uex_target, mean_ex_target], [std_uex_target, std_ex_target]);
+            erA.Color = [0 0 0]; erA.LineStyle = 'none'; erA.LineWidth = 1;
         end
-    else
-        title('视觉任务 (数据不足)');
-    end
+        hold(axA, 'off');
 
-    subplot(1,2,2); % 听觉任务
-    meanAccFreqAud = mean(accFrequentAud_Overall, 'omitnan');
-    meanAccInfreqAud = mean(accInfrequentAud_Overall, 'omitnan');
+        % --- 图2: 阶段一 - 干扰物预期性准确率 ---
+        figure('Name', ['P1 干扰物预期性 - ', char(participantID)], 'Position', [550, 600, 400, 400]);
+        axB = axes;
+        hold(axB, 'on');
+        title(axB, {'阶段一: 干扰物预期性', ['参与者: ', char(participantID)]});
+        ylabel(axB, '正确率 (%)');
+        set(axB, 'XTick', [1, 2], 'XTickLabel', {'非预期干扰物', '预期干扰物'}, 'XLim', [0.5, 2.5], 'YLim', [0, 100]);
 
-    if ~isnan(meanAccFreqAud) || ~isnan(meanAccInfreqAud)
-        barDataAud = [meanAccFreqAud, meanAccInfreqAud];
-        barLabelsAud = {'对“频繁”转换的判断准确率', '对“不频繁”转换的判断准确率'};
-        validBarsAud = ~isnan(barDataAud);
+        block_acc_uex_distractor = [];
+        block_acc_ex_distractor = [];
 
-        if any(validBarsAud)
-            bAud = bar(find(validBarsAud), barDataAud(validBarsAud), 'FaceColor', 'flat');
-            colorMapAud = [colors.frequent; colors.infrequent];
-            barColorsAud = colorMapAud(validBarsAud,:);
-            for i = 1:size(bAud.CData,1)
-                if size(bAud.CData,2) == 3
-                    bAud.CData(i,:) = barColorsAud(i,:);
-                end
+        for iB = 1:numBlocksP1
+            currentBlockID = blockIDsP1(iB);
+            blockData = nonCatchTrialsP1(nonCatchTrialsP1.block == currentBlockID, :);
+
+            uex_dist_trials_block = blockData(~blockData.distractorExpected, :);
+            if ~isempty(uex_dist_trials_block)
+                block_acc_uex_distractor = [block_acc_uex_distractor; mean(uex_dist_trials_block.accuracy) * 100];
+            else
+                block_acc_uex_distractor = [block_acc_uex_distractor; NaN];
             end
-            set(gca, 'XTick', 1:sum(validBarsAud), 'XTickLabel', barLabelsAud(validBarsAud));
-            ylabel('准确率');
-            title('听觉任务');
-            ylim([0 1.1]);
-            grid on;
-            for k = 1:length(find(validBarsAud))
-                idx = find(validBarsAud);
-                text(k, barDataAud(idx(k)), sprintf('%.2f', barDataAud(idx(k))), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');
+
+            ex_dist_trials_block = blockData(blockData.distractorExpected, :);
+            if ~isempty(ex_dist_trials_block)
+                block_acc_ex_distractor = [block_acc_ex_distractor; mean(ex_dist_trials_block.accuracy) * 100];
+            else
+                block_acc_ex_distractor = [block_acc_ex_distractor; NaN];
             end
-        else
-            title('听觉任务 (数据不足)');
         end
-    else
-        title('听觉任务 (数据不足)');
-    end
-    sgtitle(sprintf('参与者 %s: 学习阶段 - 对刺激对实际频率的判断准确率', participantID)); % Super title
 
+        mean_uex_dist = mean(block_acc_uex_distractor);
+        std_uex_dist  = std(block_acc_uex_distractor);
+        if sum(~isnan(block_acc_uex_distractor)) < 2, std_uex_dist = 0; end
+
+        mean_ex_dist = mean(block_acc_ex_distractor);
+        std_ex_dist  = std(block_acc_ex_distractor);
+        if sum(~isnan(block_acc_ex_distractor)) < 2, std_ex_dist = 0; end
+
+        barB = bar(axB, [1, 2], [mean_uex_dist, mean_ex_dist], 0.6);
+        barB.FaceColor = 'flat';
+        barB.CData(1,:) = colors.phase1_unexpected_distractor;
+        barB.CData(2,:) = colors.phase1_expected_distractor;
+
+        if ~isnan(mean_uex_dist) && ~isnan(mean_ex_dist)
+            erB = errorbar(axB, [1, 2], [mean_uex_dist, mean_ex_dist], [std_uex_dist, std_ex_dist]);
+            erB.Color = [0 0 0]; erB.LineStyle = 'none'; erB.LineWidth = 1;
+        end
+        hold(axB, 'off');
+    end
 else
-    disp('提示: 未找到明确学习阶段 (Phase 1) 的数据，跳过相关绘图。');
+    disp('未找到阶段一 (Explicit Learning) 的数据。');
+    figure; title({'阶段一数据缺失', ['参与者: ', char(participantID)]});
 end
+disp('--- 完成分析阶段一 ---');
 
-
-% --- 阶段二：内隐测试阶段 (Implicit Test) ---
+% -------------------------------------------------------------------------
+% 阶段二：内隐测试阶段 (Implicit Test)
+% -------------------------------------------------------------------------
+disp('--- 开始分析阶段二：内隐测试 ---');
 if isfield(expData, 'implicitTest') && ~isempty(expData.implicitTest)
-    fprintf('\n--- 正在处理阶段二：内隐测试阶段数据 ---\n');
-    dataPhase2 = expData.implicitTest;
+    trialsPhase2 = struct2table(expData.implicitTest, 'AsArray', true);
 
-    % 筛选视觉和听觉Block的试验数据
-    visTrialsPhase2 = dataPhase2(strcmp({dataPhase2.attentedModality}, 'visual'));
-    audTrialsPhase2 = dataPhase2(strcmp({dataPhase2.attentedModality}, 'auditory'));
-
-    % 绘制阶梯曲线 (Staircase Plot)
-    % 视觉阶梯
-    if ~isempty(visTrialsPhase2) && isfield(visTrialsPhase2, 'staircaseVisCurrentDeviant')
-        figure('Name', sprintf('P%s - 内隐测试 - 视觉阶梯', participantID), 'NumberTitle', 'off');
-        % 提取每次试验 *之后* 的偏差值 (即下一次试验将使用的偏差值)
-        deviantValuesVis = [visTrialsPhase2.staircaseVisCurrentDeviant];
-        plot(1:length(deviantValuesVis), deviantValuesVis, '.-', 'LineWidth', lineWidth, 'Color', colors.visual, 'MarkerSize', markerSize*1.5);
-        xlabel('试验序号 (视觉Block内)');
-        ylabel('视觉偏差量 (单位: 度)');
-        title(sprintf('参与者 %s: 内隐测试 - 视觉阶梯阈限追踪', participantID));
-        grid on;
-        if any(deviantValuesVis > 0); ylim([0 max(deviantValuesVis)*1.1 + 0.1]); end
+    if isnumeric(trialsPhase2.accuracy)
+        trialsPhase2.accuracy = logical(trialsPhase2.accuracy);
+    end
+    if isnumeric(trialsPhase2.isCatchTrial)
+        trialsPhase2.isCatchTrial = logical(trialsPhase2.isCatchTrial);
+    end
+    if isnumeric(trialsPhase2.targetIsDeviantStim)
+        trialsPhase2.targetIsDeviantStim = logical(trialsPhase2.targetIsDeviantStim);
     end
 
-    % 听觉阶梯
-    if ~isempty(audTrialsPhase2) && isfield(audTrialsPhase2, 'staircaseAudCurrentDeviant')
-        figure('Name', sprintf('P%s - 内隐测试 - 听觉阶梯', participantID), 'NumberTitle', 'off');
-        deviantValuesAud = [audTrialsPhase2.staircaseAudCurrentDeviant];
-        plot(1:length(deviantValuesAud), deviantValuesAud, '.-', 'LineWidth', lineWidth, 'Color', colors.auditory, 'MarkerSize', markerSize*1.5);
-        xlabel('试验序号 (听觉Block内)');
-        ylabel('听觉偏差量 (单位: Hz)');
-        title(sprintf('参与者 %s: 内隐测试 - 听觉阶梯阈限追踪', participantID));
-        grid on;
-        if any(deviantValuesAud > 0); ylim([0 max(deviantValuesAud)*1.1 + 0.1]); end
-    end
+    nonCatchTrialsP2 = trialsPhase2(~trialsPhase2.isCatchTrial, :);
 
-    % 分析偏差与标准刺激的判断准确率 (排除捕获试验)
-    hitRateVis = NaN; faRateVis = NaN; % 初始化视觉任务的命中率和虚报率
-    hitRateAud = NaN; faRateAud = NaN; % 初始化听觉任务的命中率和虚报率
+    if isempty(nonCatchTrialsP2)
+        disp('阶段二数据中没有非捕获试验。');
+    else
+        modalitiesP2 = {'visual', 'auditory'};
+        modalityLabelsP2 = {'视觉注意', '听觉注意'};
+        figure_positions_P2 = {[100, 100, 400, 400], [550, 100, 400, 400]};
 
-    % 视觉任务分析
-    nonCatchVisPhase2 = visTrialsPhase2([visTrialsPhase2.isCatchTrial] == false);
-    if ~isempty(nonCatchVisPhase2) && isfield(nonCatchVisPhase2, 'targetIsDeviantStim') && isfield(nonCatchVisPhase2, 'accuracy')
-        % 实际为偏差刺激的试验
-        actualDeviantVis = nonCatchVisPhase2([nonCatchVisPhase2.targetIsDeviantStim] == true);
-        % 实际为标准刺激的试验
-        actualStandardVis = nonCatchVisPhase2([nonCatchVisPhase2.targetIsDeviantStim] == false);
 
-        if ~isempty(actualDeviantVis)
-            hitRateVis = mean([actualDeviantVis.accuracy], 'omitnan'); % 命中率: 对偏差刺激正确判断为偏差
-        end
-        if ~isempty(actualStandardVis)
-            % 虚报率: 对标准刺激错误判断为偏差 (accuracy 为 false 时表示错误判断)
-            faRateVis = mean([actualStandardVis.accuracy] == false, 'omitnan');
-        end
-    end
+        for iMod = 1:length(modalitiesP2)
+            currentModality = modalitiesP2{iMod};
+            modalityLabel = modalityLabelsP2{iMod};
 
-    % 听觉任务分析
-    nonCatchAudPhase2 = audTrialsPhase2([audTrialsPhase2.isCatchTrial] == false);
-    if ~isempty(nonCatchAudPhase2) && isfield(nonCatchAudPhase2, 'targetIsDeviantStim') && isfield(nonCatchAudPhase2, 'accuracy')
-        actualDeviantAud = nonCatchAudPhase2([nonCatchAudPhase2.targetIsDeviantStim] == true);
-        actualStandardAud = nonCatchAudPhase2([nonCatchAudPhase2.targetIsDeviantStim] == false);
+            modalityTrialsP2 = nonCatchTrialsP2(strcmp(nonCatchTrialsP2.attentedModality, currentModality), :);
 
-        if ~isempty(actualDeviantAud)
-            hitRateAud = mean([actualDeviantAud.accuracy], 'omitnan');
-        end
-        if ~isempty(actualStandardAud)
-            faRateAud = mean([actualStandardAud.accuracy] == false, 'omitnan');
-        end
-    end
+            if isempty(modalityTrialsP2)
+                disp(['阶段二 ', modalityLabel, ' 数据中没有非捕获试验。']);
+                figure('Position', figure_positions_P2{iMod});
+                title({['阶段二 ', modalityLabel, ' 数据缺失'], ['参与者: ', char(participantID)]});
+                continue;
+            end
 
-    % 绘制命中率和正确拒绝率 (1-虚报率) 的柱状图
-    figure('Name', sprintf('P%s - 内隐测试 - 偏差/标准判断表现', participantID), 'NumberTitle', 'off');
-    subplot(1,2,1); % 视觉任务
-    if ~isnan(hitRateVis) || ~isnan(faRateVis)
-        barDataP2Vis = [hitRateVis, 1-faRateVis]; % 命中率, 正确拒绝率
-        barLabelsP2Vis = {'命中率 (偏差)', '正确拒绝率 (标准)'};
-        validBarsP2Vis = ~isnan(barDataP2Vis);
+            blockIDsP2_mod = unique(modalityTrialsP2.block);
+            numBlocksP2_mod = length(blockIDsP2_mod);
 
-        if any(validBarsP2Vis)
-            bVisP2 = bar(find(validBarsP2Vis), barDataP2Vis(validBarsP2Vis), 'FaceColor', 'flat');
-            colorMapP2Vis = [colors.deviant; colors.standard];
-            barColorsP2Vis = colorMapP2Vis(validBarsP2Vis,:);
-            for i = 1:size(bVisP2.CData,1)
-                if size(bVisP2.CData,2) == 3
-                    bVisP2.CData(i,:) = barColorsP2Vis(i,:);
+            figure('Name', ['P2 ', modalityLabel, ' - ', char(participantID)], 'Position', figure_positions_P2{iMod});
+            axC = axes;
+            hold(axC, 'on');
+            title(axC, {['阶段二: ', modalityLabel, ' (标准 vs. 偏差)'], ['参与者: ', char(participantID)]});
+            ylabel(axC, '正确率 (%)');
+            set(axC, 'XTick', [1, 2], 'XTickLabel', {'标准目标', '偏差目标'}, 'XLim', [0.5, 2.5], 'YLim', [0, 100]);
+
+            block_acc_standard = [];
+            block_acc_deviant = [];
+
+            for iB = 1:numBlocksP2_mod
+                currentBlockID = blockIDsP2_mod(iB);
+                blockData = modalityTrialsP2(modalityTrialsP2.block == currentBlockID, :);
+
+                standard_trials_block = blockData(~blockData.targetIsDeviantStim, :);
+                if ~isempty(standard_trials_block)
+                    block_acc_standard = [block_acc_standard; mean(standard_trials_block.accuracy) * 100];
+                else
+                    block_acc_standard = [block_acc_standard; NaN];
+                end
+
+                deviant_trials_block = blockData(blockData.targetIsDeviantStim, :);
+                if ~isempty(deviant_trials_block)
+                    block_acc_deviant = [block_acc_deviant; mean(deviant_trials_block.accuracy) * 100];
+                else
+                    block_acc_deviant = [block_acc_deviant; NaN];
                 end
             end
-            set(gca, 'XTick', 1:sum(validBarsP2Vis), 'XTickLabel', barLabelsP2Vis(validBarsP2Vis));
-            ylabel('比率');
-            title('视觉任务');
-            ylim([0 1.1]);
-            grid on;
-            for k = 1:length(find(validBarsP2Vis))
-                idx = find(validBarsP2Vis);
-                text(k, barDataP2Vis(idx(k)), sprintf('%.2f', barDataP2Vis(idx(k))), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');
+
+            mean_standard = mean(block_acc_standard);
+            std_standard  = std(block_acc_standard);
+            if sum(~isnan(block_acc_standard)) < 2, std_standard = 0; end
+
+            mean_deviant = mean(block_acc_deviant);
+            std_deviant  = std(block_acc_deviant);
+            if sum(~isnan(block_acc_deviant)) < 2, std_deviant = 0; end
+
+            barC = bar(axC, [1, 2], [mean_standard, mean_deviant], 0.6);
+            barC.FaceColor = 'flat';
+            barC.CData(1,:) = colors.phase2_standard;
+            barC.CData(2,:) = colors.phase2_deviant;
+
+            if ~isnan(mean_standard) && ~isnan(mean_deviant)
+                erC = errorbar(axC, [1, 2], [mean_standard, mean_deviant], [std_standard, std_deviant]);
+                erC.Color = [0 0 0]; erC.LineStyle = 'none'; erC.LineWidth = 1;
             end
-        else
-            title('视觉任务 (数据不足)');
+            hold(axC, 'off');
         end
-    else
-        title('视觉任务 (数据不足)');
     end
-
-    subplot(1,2,2); % 听觉任务
-    if ~isnan(hitRateAud) || ~isnan(faRateAud)
-        barDataP2Aud = [hitRateAud, 1-faRateAud];
-        barLabelsP2Aud = {'命中率 (偏差)', '正确拒绝率 (标准)'};
-        validBarsP2Aud = ~isnan(barDataP2Aud);
-
-        if any(validBarsP2Aud)
-            bAudP2 = bar(find(validBarsP2Aud), barDataP2Aud(validBarsP2Aud), 'FaceColor', 'flat');
-            colorMapP2Aud = [colors.deviant; colors.standard];
-            barColorsP2Aud = colorMapP2Aud(validBarsP2Aud,:);
-            for i = 1:size(bAudP2.CData,1)
-                if size(bAudP2.CData,2) == 3
-                    bAudP2.CData(i,:) = barColorsP2Aud(i,:);
-                end
-            end
-            set(gca, 'XTick', 1:sum(validBarsP2Aud), 'XTickLabel', barLabelsP2Aud(validBarsP2Aud));
-            ylabel('比率');
-            title('听觉任务');
-            ylim([0 1.1]);
-            grid on;
-            for k = 1:length(find(validBarsP2Aud))
-                idx = find(validBarsP2Aud);
-                text(k, barDataP2Aud(idx(k)), sprintf('%.2f', barDataP2Aud(idx(k))), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');
-            end
-        else
-            title('听觉任务 (数据不足)');
-        end
-    else
-        title('听觉任务 (数据不足)');
-    end
-    sgtitle(sprintf('参与者 %s: 内隐测试 - 偏差/标准判断表现 (非捕获试验)', participantID));
-
 else
-    disp('提示: 未找到内隐测试阶段 (Phase 2) 的数据，跳过相关绘图。');
+    disp('未找到阶段二 (Implicit Test) 的数据。');
+    figure; title({'阶段二 (视觉) 数据缺失', ['参与者: ', char(participantID)]});
+    figure; title({'阶段二 (听觉) 数据缺失', ['参与者: ', char(participantID)]});
 end
+disp('--- 完成分析阶段二 ---');
 
-
-% --- 阶段三：明确回忆阶段 (Explicit Recall) ---
+% -------------------------------------------------------------------------
+% 阶段三：明确回忆阶段 (Explicit Recall)
+% -------------------------------------------------------------------------
+disp('--- 开始分析阶段三：明确回忆 ---');
 if isfield(expData, 'explicitRecall') && ~isempty(expData.explicitRecall)
-    fprintf('\n--- 正在处理阶段三：明确回忆阶段数据 ---\n');
-    dataPhase3 = expData.explicitRecall;
+    trialsPhase3 = struct2table(expData.explicitRecall, 'AsArray', true);
 
-    % 筛选视觉和听觉回忆Block的试验数据
-    recallVisTrials = dataPhase3(strcmp({dataPhase3.recallModality}, 'visual'));
-    recallAudTrials = dataPhase3(strcmp({dataPhase3.recallModality}, 'auditory'));
-
-    % 初始化回忆准确率变量
-    recalledAsFreq_Vis_ActualFreq_Acc = NaN;    % 视觉：实际频繁，回忆为频繁的准确率
-    recalledAsInfreq_Vis_ActualInfreq_Acc = NaN;% 视觉：实际不频繁，回忆为不频繁的准确率
-    recalledAsFreq_Aud_ActualFreq_Acc = NaN;    % 听觉：同上
-    recalledAsInfreq_Aud_ActualInfreq_Acc = NaN;% 听觉：同上
-
-    % 视觉回忆分析
-    if ~isempty(recallVisTrials) && isfield(recallVisTrials, 'wasActuallyFrequentInLearning') && isfield(recallVisTrials, 'responseType')
-        % 实际为频繁的刺激对
-        actualFreqVis_Recall = recallVisTrials([recallVisTrials.wasActuallyFrequentInLearning] == true);
-        if ~isempty(actualFreqVis_Recall)
-            recalledAsFreq_Vis_ActualFreq_Acc = mean(strcmp({actualFreqVis_Recall.responseType}, 'frequent'), 'omitnan');
-        end
-
-        % 实际为不频繁的刺激对
-        actualInfreqVis_Recall = recallVisTrials([recallVisTrials.wasActuallyFrequentInLearning] == false);
-        if ~isempty(actualInfreqVis_Recall)
-            recalledAsInfreq_Vis_ActualInfreq_Acc = mean(strcmp({actualInfreqVis_Recall.responseType}, 'infrequent'), 'omitnan');
-        end
+    if isnumeric(trialsPhase3.accuracy)
+        trialsPhase3.accuracy = logical(trialsPhase3.accuracy);
+    end
+    if isnumeric(trialsPhase3.wasActuallyFrequentInLearning)
+        trialsPhase3.wasActuallyFrequentInLearning = logical(trialsPhase3.wasActuallyFrequentInLearning);
     end
 
-    % 听觉回忆分析
-    if ~isempty(recallAudTrials) && isfield(recallAudTrials, 'wasActuallyFrequentInLearning') && isfield(recallAudTrials, 'responseType')
-        actualFreqAud_Recall = recallAudTrials([recallAudTrials.wasActuallyFrequentInLearning] == true);
-        if ~isempty(actualFreqAud_Recall)
-            recalledAsFreq_Aud_ActualFreq_Acc = mean(strcmp({actualFreqAud_Recall.responseType}, 'frequent'), 'omitnan');
+    modalitiesP3 = {'visual', 'auditory'};
+    modalityLabelsP3 = {'视觉回忆', '听觉回忆'};
+    figure_positions_P3 = {[1000, 600, 400, 400], [1000, 100, 400, 400]}; % Adjusted positions for clarity
+
+
+    for iMod = 1:length(modalitiesP3)
+        currentModality = modalitiesP3{iMod};
+        modalityLabel = modalityLabelsP3{iMod};
+
+        modalityTrialsP3 = trialsPhase3(strcmp(trialsPhase3.recallModality, currentModality), :);
+
+        if isempty(modalityTrialsP3)
+            disp(['阶段三 ', modalityLabel, ' 数据缺失。']);
+            figure('Position', figure_positions_P3{iMod});
+            title({['阶段三 ', modalityLabel, ' 数据缺失'], ['参与者: ', char(participantID)]});
+            continue;
         end
 
-        actualInfreqAud_Recall = recallAudTrials([recallAudTrials.wasActuallyFrequentInLearning] == false);
-        if ~isempty(actualInfreqAud_Recall)
-            recalledAsInfreq_Aud_ActualInfreq_Acc = mean(strcmp({actualInfreqAud_Recall.responseType}, 'infrequent'), 'omitnan');
+        figure('Name', ['P3 ', modalityLabel, ' - ', char(participantID)], 'Position', figure_positions_P3{iMod});
+        axD = axes;
+        hold(axD, 'on');
+        title(axD, {['阶段三: ', modalityLabel, ' (实际非频繁 vs. 实际频繁)'],['参与者: ', char(participantID)]});
+        ylabel(axD, '正确率 (%)');
+        set(axD, 'XTick', [1, 2], 'XTickLabel', {'实际非频繁', '实际频繁'}, 'XLim', [0.5, 2.5], 'YLim', [0, 100]);
+
+        infrequent_trials = modalityTrialsP3(~modalityTrialsP3.wasActuallyFrequentInLearning, :);
+        frequent_trials   = modalityTrialsP3(modalityTrialsP3.wasActuallyFrequentInLearning, :);
+
+        mean_acc_infrequent = NaN;
+        std_acc_infrequent = 0;
+        if ~isempty(infrequent_trials)
+            mean_acc_infrequent = mean(infrequent_trials.accuracy) * 100;
         end
+
+        mean_acc_frequent = NaN;
+        std_acc_frequent = 0;
+        if ~isempty(frequent_trials)
+            mean_acc_frequent = mean(frequent_trials.accuracy) * 100;
+        end
+
+        barD = bar(axD, [1, 2], [mean_acc_infrequent, mean_acc_frequent], 0.6);
+        barD.FaceColor = 'flat';
+        barD.CData(1,:) = colors.phase3_infrequent;
+        barD.CData(2,:) = colors.phase3_frequent;
+
+        if ~isnan(mean_acc_infrequent) && ~isnan(mean_acc_frequent)
+            erD = errorbar(axD, [1, 2], [mean_acc_infrequent, mean_acc_frequent], ...
+                [std_acc_infrequent, std_acc_frequent]);
+            erD.Color = [0 0 0]; erD.LineStyle = 'none'; erD.LineWidth = 1;
+        end
+        hold(axD, 'off');
     end
-
-    % 绘制回忆阶段准确率的柱状图
-    figure('Name', sprintf('P%s - 回忆阶段 - 频率判断准确率', participantID), 'NumberTitle', 'off');
-    subplot(1,2,1); % 视觉任务
-    if ~isnan(recalledAsFreq_Vis_ActualFreq_Acc) || ~isnan(recalledAsInfreq_Vis_ActualInfreq_Acc)
-        barDataRecallVis = [recalledAsFreq_Vis_ActualFreq_Acc, recalledAsInfreq_Vis_ActualInfreq_Acc];
-        barLabelsRecallVis = {'回忆“频繁”正确率', '回忆“不频繁”正确率'};
-        validBarsRecallVis = ~isnan(barDataRecallVis);
-
-        if any(validBarsRecallVis)
-            bRVis = bar(find(validBarsRecallVis), barDataRecallVis(validBarsRecallVis), 'FaceColor', 'flat');
-            colorMapRecallVis = [colors.frequent; colors.infrequent];
-            barColorsRecallVis = colorMapRecallVis(validBarsRecallVis,:);
-            for i = 1:size(bRVis.CData,1)
-                if size(bRVis.CData,2) == 3
-                    bRVis.CData(i,:) = barColorsRecallVis(i,:);
-                end
-            end
-            set(gca, 'XTick', 1:sum(validBarsRecallVis), 'XTickLabel', barLabelsRecallVis(validBarsRecallVis));
-            ylabel('正确回忆比率');
-            title('视觉任务');
-            ylim([0 1.1]);
-            grid on;
-            for k = 1:length(find(validBarsRecallVis))
-                idx = find(validBarsRecallVis);
-                text(k, barDataRecallVis(idx(k)), sprintf('%.2f', barDataRecallVis(idx(k))), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');
-            end
-        else
-            title('视觉任务 (数据不足)');
-        end
-    else
-        title('视觉任务 (数据不足)');
-    end
-
-    subplot(1,2,2); % 听觉任务
-    if ~isnan(recalledAsFreq_Aud_ActualFreq_Acc) || ~isnan(recalledAsInfreq_Aud_ActualInfreq_Acc)
-        barDataRecallAud = [recalledAsFreq_Aud_ActualFreq_Acc, recalledAsInfreq_Aud_ActualInfreq_Acc];
-        barLabelsRecallAud = {'回忆“频繁”正确率', '回忆“不频繁”正确率'};
-        validBarsRecallAud = ~isnan(barDataRecallAud);
-
-        if any(validBarsRecallAud)
-            bRAud = bar(find(validBarsRecallAud), barDataRecallAud(validBarsRecallAud), 'FaceColor', 'flat');
-            colorMapRecallAud = [colors.frequent; colors.infrequent];
-            barColorsRecallAud = colorMapRecallAud(validBarsRecallAud,:);
-            for i = 1:size(bRAud.CData,1)
-                if size(bRAud.CData,2) == 3
-                    bRAud.CData(i,:) = barColorsRecallAud(i,:);
-                end
-            end
-            set(gca, 'XTick', 1:sum(validBarsRecallAud), 'XTickLabel', barLabelsRecallAud(validBarsRecallAud));
-            ylabel('正确回忆比率');
-            title('听觉任务');
-            ylim([0 1.1]);
-            grid on;
-            for k = 1:length(find(validBarsRecallAud))
-                idx = find(validBarsRecallAud);
-                text(k, barDataRecallAud(idx(k)), sprintf('%.2f', barDataRecallAud(idx(k))), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');
-            end
-        else
-            title('听觉任务 (数据不足)');
-        end
-    else
-        title('听觉任务 (数据不足)');
-    end
-    sgtitle(sprintf('参与者 %s: 回忆阶段 - 对学习阶段刺激对频率的判断准确率', participantID));
-
 else
-    disp('提示: 未找到明确回忆阶段 (Phase 3) 的数据，跳过相关绘图。');
+    disp('未找到阶段三 (Explicit Recall) 的数据。');
+    figure; title({'阶段三 (视觉回忆) 数据缺失', ['参与者: ', char(participantID)]});
+    figure; title({'阶段三 (听觉回忆) 数据缺失', ['参与者: ', char(participantID)]});
 end
+disp('--- 完成分析阶段三 ---');
 
-fprintf('\n所有可用的图表已生成完毕。\n');
+disp('全部分析脚本执行完毕。所有图表已在单独窗口中生成。');
